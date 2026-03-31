@@ -1,0 +1,850 @@
+AEGIS AI - Comprehensive Project Documentation
+================================================
+
+Document purpose
+----------------
+This document explains the AEGIS AI project end to end: what it does, how it works, the core features, the technical stack, the backend and frontend modules, the scan and reporting flow, the GitHub remediation workflow, project scope, and current system behavior.
+
+1. Project overview
+-------------------
+AEGIS AI is a local SaaS-style security scanner built for scanning web applications and GitHub repositories. It combines:
+- Public attack-surface scanning
+- GitHub repository inspection
+- API endpoint discovery and probing
+- AI-generated security summaries
+- Dashboard analytics and reporting
+- GitHub-based remediation workflow for accepted code changes
+
+The platform is designed to let a user:
+- register and log in
+- create security projects tied to a domain and optional GitHub repositories
+- run basic or advanced scans
+- review findings and risk scores
+- generate PDF reports
+- inspect dashboard analytics
+- review suggested code changes for mapped vulnerabilities
+- accept and push selected fixes to GitHub
+
+The product behaves like a lightweight security operations console for individual projects, while also supporting an admin view across all users and projects.
+
+2. Primary problem the project solves
+-------------------------------------
+AEGIS AI is meant to reduce the gap between discovering security issues and actually fixing them.
+
+Typical security tools only report problems. AEGIS AI goes further by:
+- scanning the public-facing domain
+- scanning connected GitHub repositories
+- identifying routes, auth weaknesses, headers, exposed files, and AI-style insecure coding patterns
+- mapping findings to likely repository files where possible
+- generating before/after code suggestions
+- allowing accepted code changes to be committed and pushed to GitHub
+
+This makes the system both an assessment tool and a guided remediation tool.
+
+3. Project scope
+----------------
+In scope:
+- user authentication and role-based access
+- project management
+- domain and repository-based security scanning
+- analytics dashboards
+- scan history
+- PDF reporting
+- scheduled scans with Celery
+- GitHub remediation and push workflow
+- code-compare review page with printable/PDF export
+
+Out of scope or limited:
+- enterprise-grade security testing such as deep DAST, fuzzing, or exploit automation
+- true static code analysis comparable to professional SAST tools
+- guaranteed exact file mapping for every vulnerability
+- full CI/CD integration
+- branch/PR-based GitHub workflow orchestration beyond direct push to configured branch
+- full password reset implementation beyond placeholder endpoint
+
+4. Core feature set
+-------------------
+4.1 Public landing and authentication
+- Home page introduces the system and provides a "Start Scanning" entry point.
+- If the user is not logged in, the flow redirects to login.
+- Authentication supports registration, login, token refresh, logout, profile retrieval, and admin user management.
+
+4.2 Project creation and management
+Users can create projects containing:
+- project name
+- target domain
+- scan mode
+- one or two GitHub repositories
+- API base URL and API list
+- stack name
+- subdomains
+- optional test email/password or token
+- notification email
+- scheduled scan settings
+
+Single-repo logic:
+- If only the first GitHub repo is supplied, the system treats it as a combined repo containing both frontend and backend.
+- If both GitHub repo fields are supplied, the first is treated as frontend and the second as backend.
+
+4.3 Scan modes
+Basic scan:
+- domain/surface-focused
+- public website and network posture checks
+- does not require GitHub repository analysis for remediation
+
+Advanced scan:
+- includes everything from the surface scan
+- scans GitHub repositories
+- builds candidate API endpoints
+- attempts test authentication if credentials exist
+- probes API endpoints safely
+- inspects code samples for AI/vibe-code patterns
+- resolves findings to likely file paths when possible
+- supports code review and GitHub push workflow when file mappings exist
+
+4.4 Surface scan engine
+The surface scan engine inspects the target domain and website for:
+- DNS information
+- HTTP and HTTPS reachability
+- redirect chains
+- security headers
+- TLS and certificate posture
+- certificate transparency data
+- public files
+- technology fingerprinting
+- timing and risk indicators
+- email security posture
+
+This produces:
+- structured scan records
+- findings with severity and recommendation
+- risk score and risk level
+- raw artifacts for reporting
+- optional AI summary
+
+4.5 GitHub repository scan
+The GitHub scan inspects configured repositories and tries to extract:
+- route information from the codebase
+- file-level signals
+- code samples
+- code-related findings
+- security and malware/secrets patterns
+- metadata about scan success and failure
+
+If the repository scan succeeds, the pipeline uses discovered routes and code samples to enrich the advanced scan.
+
+4.6 Endpoint inventory and API probing
+Advanced scans build an endpoint inventory from:
+- built-in default API paths
+- project-level API list
+- discovered routes from GitHub
+
+Then AEGIS AI:
+- attempts safe endpoint probing
+- classifies working, public, and protected endpoints
+- records accessible admin surfaces where relevant
+- feeds the result into the final report and scoring
+
+4.7 Authentication and JWT inspection
+If the project has test credentials or a token, advanced scans can:
+- attempt to obtain a login token
+- inspect JWT structure and weaknesses
+- use auth context for protected endpoint probing
+
+4.8 AI summary and AI-assisted code remediation
+The AI layer supports:
+- narrative security summaries
+- threat story generation
+- remediation guidance
+- code rewrite suggestions for file-specific findings
+
+Provider strategy:
+- primary provider: OpenRouter
+- fallback provider: Ollama
+
+4.9 Code change review workspace
+When a successful advanced scan contains findings mapped to real repository files, the frontend exposes a dedicated code review page.
+
+This page provides:
+- a list of code change items
+- severity and category badges
+- target file or page
+- change summary
+- advantage of applying the fix
+- downside of not applying it
+- before and after code snippets
+- risk before push and projected risk after push
+- terminal-style push log
+- accept-per-file or accept-all action
+
+4.10 GitHub commit and push flow
+Accepted file-mapped findings can be sent to the backend push service.
+
+The backend workflow:
+- validates accepted vulnerability IDs
+- groups findings by repository and file
+- clones the repository to a temporary location
+- authenticates via GitHub token in HTTPS URL
+- rewrites affected file contents using AI
+- stages and commits changed files
+- pushes to the configured branch, normally main
+- verifies commit existence locally and remotely
+- returns commit hash and logs to the frontend
+
+Important runtime rules:
+- only mapped code findings are eligible for this flow
+- push is real, not simulated
+- skipped files do not necessarily block the full push if other files can be committed
+- post-push auto-scan has now been disabled in the UI flow so the page stops at successful push and shows the commit result
+
+4.11 Compare PDF export
+The compare page now supports exporting a print/PDF-friendly code comparison report containing:
+- scan/project information
+- issue summary
+- target file or page
+- advantage and downside
+- old code snippet
+- recommended code snippet
+
+This export is intended to be shareable with external AI systems or reviewers for deeper solution review.
+
+4.12 Reports
+AEGIS AI can generate PDF scan reports from completed scans. The report system includes:
+- PDF generation via ReportLab with WeasyPrint fallback
+- stored report records in the database
+- downloadable report files
+- HTML template-based report rendering
+
+4.13 Dashboard analytics
+User dashboard includes:
+- total projects
+- last scan time
+- current security score
+- vibe risk score
+- critical findings count
+- warning findings count
+- next scheduled scan
+- score-over-time charts
+- vibe-risk-over-time charts
+- critical-over-time charts
+- issue category breakdown
+- recent scan history
+
+Admin dashboard includes:
+- total users
+- total projects
+- total scans
+- active projects
+- failed scans
+- highest risk projects
+- most common issue types
+- daily scan volume
+- failed vs successful trend
+- active users over time
+- user-project overview rows
+
+4.14 Scheduling and notifications
+The system supports periodic scan dispatch using Celery and Redis.
+
+Scheduled behavior includes:
+- dispatch of due scans every 15 minutes
+- daily scan enqueue support
+- optional email notifications after successful scans
+- optional PDF attachment generation for emails
+
+5. Technical stack
+------------------
+Backend:
+- Python
+- Django
+- Django REST Framework
+- MySQL
+- Celery
+- Redis
+- django-celery-results
+- Simple JWT
+- ReportLab
+- WeasyPrint fallback
+- Requests and related HTTP tooling
+
+Frontend:
+- React
+- Vite
+- Axios
+- React Router
+- Recharts
+- plain CSS in a custom stylesheet
+
+AI integration:
+- OpenRouter
+- Ollama
+
+Infrastructure assumptions:
+- local development environment
+- MySQL for persistence
+- Redis for task queue broker
+- SMTP for notifications
+- GitHub token-based access for repository scanning and pushing
+
+6. System architecture
+----------------------
+High-level architecture:
+1. React frontend provides user interface.
+2. Django REST backend exposes APIs.
+3. MySQL stores users, projects, scans, findings, reports, and task logs.
+4. Celery workers execute scans asynchronously.
+5. Redis acts as queue broker.
+6. AI providers generate summaries and code rewrites.
+7. GitHub is used as the source and destination for code remediation.
+
+Request flow example for advanced scan:
+- frontend requests scan run
+- backend creates ScanResult and task log
+- Celery task invokes ScanPipeline
+- surface scan runs
+- GitHub scan runs
+- endpoint inventory is built
+- optional auth/JWT/API probe runs
+- findings are aggregated and scored
+- AI summary is generated
+- vulnerabilities are persisted
+- analytics and reports can consume the scan result
+
+7. Backend module map
+---------------------
+7.1 config
+Files:
+- backend/config/settings/base.py
+- backend/config/settings/development.py
+- backend/config/urls.py
+- backend/config/celery.py
+- backend/config/asgi.py
+- backend/config/wsgi.py
+
+Function:
+- global Django settings
+- installed apps and middleware
+- JWT configuration
+- Celery broker/result settings
+- AI provider environment settings
+- GitHub token and push branch settings
+- URL routing root
+- logging setup
+
+7.2 apps.common
+Purpose:
+- shared primitives and helpers
+
+Key responsibilities:
+- TimeStampedModel base class
+- permissions helpers
+- health-check API
+- secret encryption/masking helpers
+- target normalization helpers
+- seed demo management command
+
+7.3 apps.accounts
+Purpose:
+- authentication and user management
+
+Key responsibilities:
+- custom User model with role support
+- registration
+- login/logout
+- token refresh
+- profile lookup
+- admin user listing and management
+
+Important model:
+- User
+  - name
+  - email
+  - role
+  - is_active
+  - is_staff
+
+7.4 apps.projects
+Purpose:
+- store project configuration and scan settings
+
+Key responsibilities:
+- project CRUD
+- scan mode and scheduling metadata
+- GitHub repo configuration
+- API and subdomain metadata
+- encrypted test credentials and tokens
+- next scan calculation
+- single-repo vs split-repo resolution logic
+
+Important model:
+- Project
+  - user
+  - name
+  - domain
+  - scan_mode
+  - github_url / frontend_github_url / backend_github_url
+  - api_base_url
+  - api_list
+  - stack_name
+  - subdomains
+  - test_email / encrypted_test_password
+  - masked_token / encrypted_token
+  - scan_enabled
+  - scan_frequency
+  - notification_email
+  - last_scanned_at / next_scan_at
+
+7.5 apps.surface_scan
+Purpose:
+- perform public-facing domain and website security analysis
+
+Key responsibilities:
+- normalize domain target
+- DNS checks
+- HTTP/HTTPS reachability
+- TLS checks
+- security header checks
+- public-file checks
+- certificate transparency checks
+- technology fingerprinting
+- email security checks
+- findings building and risk scoring
+- optional AI summary
+
+Important models:
+- DomainScan
+- DomainFinding
+
+7.6 apps.scans
+Purpose:
+- orchestrate the main scan pipeline and manage vulnerabilities
+
+Key responsibilities:
+- run basic and advanced scans
+- aggregate findings from surface scan and repo scan
+- build endpoint inventory
+- test auth and inspect JWT
+- probe endpoints
+- run vibe-code checks
+- resolve file paths for findings
+- calculate combined risk score and summary
+- persist vulnerabilities and task logs
+- accept-and-push GitHub remediation workflow
+
+Important models:
+- ScanResult
+- Vulnerability
+- ScanTaskLog
+
+Key services:
+- pipeline.py
+- github_push.py
+- file_path_resolver.py
+- scoring.py
+- api_endpoints.py
+- checks/*.py
+
+7.7 apps.ai_core
+Purpose:
+- AI abstraction for summaries and secure code rewriting
+
+Key responsibilities:
+- provider fallback strategy
+- security summary prompt orchestration
+- code rewrite prompt orchestration
+- provider selection between OpenRouter and Ollama
+
+7.8 apps.analytics
+Purpose:
+- compute user and admin dashboards
+
+Key responsibilities:
+- aggregate scan and vulnerability data
+- build chart datasets
+- produce admin overview summaries
+
+7.9 apps.reports
+Purpose:
+- generate and store PDF reports for scans
+
+Key responsibilities:
+- report record storage
+- PDF generation with ReportLab / WeasyPrint
+- serializing downloadable report assets
+
+7.10 apps.notifications
+Purpose:
+- email notifications and scheduled summary dispatch
+
+Key responsibilities:
+- email service helpers
+- Celery task wrappers for sending notifications
+- notification persistence model support
+
+8. Frontend module map
+----------------------
+8.1 app and routing
+Files:
+- frontend/src/main.jsx
+- frontend/src/app/auth.jsx
+- frontend/src/router/AppRouter.jsx
+
+Function:
+- bootstraps React app
+- stores auth/session state
+- controls public and protected routes
+- redirects admins and normal users appropriately
+
+8.2 layout
+- AppShell.jsx
+Purpose:
+- sidebar and shared app layout for authenticated pages
+
+8.3 common UI
+Files:
+- UI.jsx
+- BackButton.jsx
+- DataTable.jsx
+- DashboardCharts.jsx
+- formatters.js
+
+Purpose:
+- shared visual components
+- chart rendering helpers
+- table badges and formatting
+
+8.4 pages
+Home and auth:
+- HomePage.jsx
+- LoginPage.jsx
+- RegisterPage.jsx
+- ForgotPasswordPage.jsx
+
+Project management:
+- ProjectListPage.jsx
+- ProjectDetailPage.jsx
+- ProjectFormPage.jsx
+- ProjectForm.jsx
+
+Scanning and reports:
+- ScanDetailPage.jsx
+- ScanCodeReviewPage.jsx
+- ReportsPage.jsx
+
+Dashboards and admin:
+- UserDashboardPage.jsx
+- AdminDashboardPage.jsx
+- AdminProjectsPage.jsx
+- AdminScansPage.jsx
+- AdminUsersPage.jsx
+
+Settings:
+- SettingsPage.jsx
+
+8.5 scan review component
+- CodeChangeWorkbench.jsx
+Purpose:
+- render accepted code review workflow
+- show before/after code
+- trigger push
+- show push logs and commit result
+- export compare PDF
+
+8.6 API client
+- frontend/src/api/client.js
+Purpose:
+- Axios instance and auth-aware request handling
+- token refresh behavior for protected endpoints
+
+8.7 styling
+- frontend/src/styles/main.css
+Purpose:
+- main design system and page styling for the application
+
+9. Data model summary
+---------------------
+Core persistent entities include:
+- User
+- Project
+- ScanResult
+- Vulnerability
+- ScanTaskLog
+- DomainScan
+- DomainFinding
+- Report
+- Notification-related entities
+
+Conceptually, the relationships are:
+- a User owns many Projects
+- a Project has many ScanResults
+- a ScanResult has many Vulnerabilities
+- a Project has many task logs
+- a DomainScan may be linked one-to-one with a ScanResult
+- a Report belongs to a Project and optionally a ScanResult
+
+10. API surface summary
+-----------------------
+Root API namespaces:
+- /api/v1/health/
+- /api/v1/auth/
+- /api/v1/projects/
+- /api/v1/scans/
+- /api/v1/reports/
+- /api/v1/dashboard/
+- /api/v1/domain-scans/
+
+Important auth endpoints:
+- register
+- login
+- refresh
+- logout
+- profile
+- forgot-password placeholder
+- admin users router
+
+Important project endpoints:
+- project CRUD through ProjectViewSet
+
+Important scan endpoints:
+- scan result router
+- vulnerability router
+- custom result actions such as accept-and-push implemented in scan views
+
+Important dashboard endpoints:
+- user-summary
+- admin-summary
+
+11. Scan workflow in detail
+---------------------------
+11.1 Basic scan workflow
+- create ScanResult with running status
+- create DomainScan
+- run SurfaceScanOrchestrator
+- convert DomainFindings into Vulnerability rows
+- score and summarize result
+- save scan completion
+- optionally generate report and notifications
+
+11.2 Advanced scan workflow
+- create ScanResult with running status
+- run surface scan capture
+- if repos exist, run GitHub scan
+- build endpoint inventory
+- attempt test auth if possible
+- inspect JWT if a token exists
+- safely probe API endpoints
+- analyze code samples for vibe-code patterns
+- resolve findings to repository file paths
+- compute combined risk score and final summary
+- request AI narrative summary
+- save vulnerabilities and detailed report data
+
+11.3 Why file mapping matters
+The system may say that a finding is code-fixable, but auto-remediation requires exact or likely repository file mapping. The file path resolver bridges that gap by trying to attach findings to real repo paths using:
+- route discovery
+- repository file lists
+- category heuristics
+- known path patterns
+
+Without that mapping, a finding can still appear in the report but will not be eligible for GitHub accept-and-push flow.
+
+12. GitHub remediation workflow in detail
+-----------------------------------------
+The GitHub remediation feature is one of the project?s most distinctive features.
+
+12.1 Preconditions
+- advanced scan completed successfully
+- GitHub repo scan succeeded
+- findings mapped to real repository files
+- backend has a valid GitHub token
+- token owner has permission to push to the target repo and branch
+
+12.2 Frontend flow
+- user opens scan code review page
+- system lists pushable code findings only
+- user inspects before/after snippets
+- user accepts one item or accepts all
+- frontend calls accept-and-push API
+- frontend shows terminal log and push status
+- after success, UI now stops and shows success instead of auto-scanning again
+
+12.3 Backend flow
+- validate incoming vulnerability list
+- gather vulnerabilities and group by target repo/file
+- clone repo to temporary workspace using authenticated remote URL
+- rewrite file contents via AIService.rewrite_code_for_security
+- stage files
+- commit with generated or provided commit message
+- push to configured branch
+- verify remote commit exists
+- return success payload including commit hash and changed files
+
+12.4 Common failure categories
+- GitHub rate limiting during scan if token is absent or weak
+- insufficient collaborator/write access
+- branch protection blocking direct push
+- AI rewrite producing no code change for a mapped file
+- browser disconnect causing broken pipe after push if request stays open too long
+
+12.5 Current workflow improvement
+The compare page now avoids post-push auto-scan because that could make the UI show false failure even after a successful push. The success state now ends at GitHub push confirmation.
+
+13. Reporting subsystem
+-----------------------
+The report service compiles the scan into a PDF containing:
+- project and scan metadata
+- status, score, vibe risk
+- counts by severity
+- summary and AI summary
+- working endpoints and discovered routes
+- key findings
+
+It first tries ReportLab generation, then falls back to WeasyPrint if needed.
+
+14. Analytics subsystem
+-----------------------
+The analytics service is built around scan and vulnerability aggregates.
+
+User summary emphasizes:
+- posture for one user?s portfolio
+- score trends
+- issue distribution
+- recent scan history
+
+Admin summary emphasizes:
+- system-wide project and user oversight
+- failed vs successful scans
+- most risky projects
+- common issue categories
+- activity over time
+
+15. Scheduling and background processing
+----------------------------------------
+Celery tasks in the project handle longer-running work and recurring automation.
+
+Important tasks:
+- run_project_scan
+- dispatch_due_project_scans
+- enqueue_daily_scans
+- email notification tasks
+
+Why Celery matters here:
+- scans can take noticeable time
+- PDF generation and email dispatch should not block web requests
+- scheduling needs an asynchronous worker and beat scheduler
+
+16. Security design choices
+---------------------------
+Positive design choices present in the codebase:
+- JWT-based authentication for API access
+- role separation between user and admin
+- encrypted storage helpers for test passwords and tokens
+- file-mapped remediation limited to eligible findings
+- structured logging across scanning and push flows
+- risk scoring and severity breakdowns persisted for auditability
+- GitHub token kept in backend environment rather than browser
+
+17. Operational dependencies
+----------------------------
+The system expects the following runtime components to be available:
+- MySQL server
+- Redis server
+- Django backend
+- Celery worker
+- Celery beat for scheduling
+- frontend dev/build server
+- SMTP service for notifications
+- one or more AI providers configured
+- GitHub token for repository scanning and push
+
+18. Project strengths
+---------------------
+- clear split between surface scanning and advanced code-aware scanning
+- practical full-stack architecture
+- asynchronous scanning with logging and task records
+- dashboard and PDF reporting built in
+- AI-assisted summary and remediation flow
+- real GitHub push integration for accepted fixes
+- admin visibility and user-specific dashboards
+
+19. Current limitations and practical realities
+-----------------------------------------------
+- not every finding can be mapped to an exact file
+- AI-generated fixes may fail or produce no change for some files
+- direct push can be blocked by GitHub permissions or branch protections
+- current compare PDF is browser print-based, not server-rendered
+- frontend bundle is relatively large and still emits a Vite chunk warning on build
+- some placeholder features, such as forgot-password, are not fully implemented end to end
+
+20. Example user journey
+------------------------
+1. User lands on the home page.
+2. User logs in or registers.
+3. User creates a project with domain and one or two GitHub repositories.
+4. User selects advanced scan.
+5. Backend runs surface scan, GitHub scan, endpoint inventory, auth/API probing, and AI summary.
+6. User opens scan detail page and reviews severity counts, summaries, charts, and report options.
+7. If pushable file-mapped code findings exist, user opens the code review page.
+8. User compares old and recommended code.
+9. User exports compare PDF if needed for outside review.
+10. User accepts one or all code changes.
+11. Backend commits and pushes to GitHub.
+12. UI shows push success and final commit hash.
+
+21. Folder-level project report
+-------------------------------
+Backend top-level:
+- config: settings, root URLs, celery
+- apps/accounts: auth and user management
+- apps/projects: project definitions and scheduling metadata
+- apps/scans: advanced/basic scan orchestration and remediation
+- apps/surface_scan: domain-focused scanning engine
+- apps/reports: PDF report generation and storage
+- apps/analytics: dashboard aggregation
+- apps/ai_core: provider abstraction and AI tasks
+- apps/notifications: email and notification support
+- logs: runtime application logs
+- media/reports: generated PDF files
+
+Frontend top-level:
+- api: Axios client
+- app: auth context/state
+- components: reusable UI, layout, charts, tables, forms, scan review
+- pages: all route-level screens
+- router: application route map
+- styles: global styling
+- utils: formatting helpers
+
+22. Environment configuration summary
+------------------------------------
+Important backend environment settings include:
+- DJANGO_SECRET_KEY
+- DJANGO_DEBUG
+- MYSQL_DATABASE / MYSQL_USER / MYSQL_PASSWORD / MYSQL_HOST / MYSQL_PORT
+- REDIS_URL / CELERY_BROKER_URL
+- SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASSWORD
+- FRONTEND_URL
+- OPENROUTER_API_KEY / OPENROUTER_MODEL
+- OLLAMA_BASE_URL / OLLAMA_MODEL
+- GITHUB_TOKEN
+- GITHUB_PUSH_BRANCH
+- FIELD_ENCRYPTION_KEY
+
+These values determine whether scanning, notifications, AI generation, and GitHub remediation work correctly.
+
+23. How the project should be described in one paragraph
+-------------------------------------------------------
+AEGIS AI is a Django and React-based security scanning platform that combines website surface analysis, GitHub repository inspection, endpoint probing, AI-generated summaries, PDF reporting, dashboard analytics, and AI-assisted GitHub remediation into one workflow. It is designed to help users move from discovery to action by turning findings into structured code-review suggestions and, where possible, real GitHub commits and pushes.
+
+24. Recommended future improvements
+-----------------------------------
+- stronger static analysis and route-to-file mapping
+- PR-based remediation flow instead of direct push only
+- background post-push rescan as a separate task with polling
+- richer compare PDF generated server-side
+- branch protection and collaborator diagnostics in UI
+- deeper test coverage across scan and push workflows
+- code splitting and frontend bundle optimization
+- complete password reset and notification management flows
+
+End of document.
