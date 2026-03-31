@@ -1,0 +1,14 @@
+AEGIS AI Daily Summary
+
+Project: {{ project.name }}
+Scan status: {{ scan_result.status }}
+Provider: {{ scan_result.provider_used|default:"fallback summary" }}
+
+Narrative:
+{{ scan_result.ai_summary|default:scan_result.summary }}
+
+Critical findings: {{ scan_result.critical_count }}
+Warnings: {{ scan_result.warning_count }}
+Info: {{ scan_result.info_count }}
+
+Generated locally by AEGIS AI.

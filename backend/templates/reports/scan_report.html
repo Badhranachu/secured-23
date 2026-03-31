@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>AEGIS AI Scan Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; color: #1f2937; margin: 22px; }
+        h1, h2, h3 { margin-bottom: 0.4rem; }
+        h1 { font-size: 28px; }
+        h2 { margin-top: 1.5rem; font-size: 20px; }
+        h3 { margin-top: 1rem; font-size: 16px; }
+        p, li { line-height: 1.6; }
+        table { width: 100%; border-collapse: collapse; margin-top: 0.8rem; font-size: 13px; }
+        th, td { border: 1px solid #d1d5db; padding: 0.5rem; text-align: left; vertical-align: top; }
+        th { background: #f8fafc; }
+        .muted { color: #6b7280; }
+        .section { margin-top: 1.5rem; }
+        .grid { width: 100%; border-collapse: separate; border-spacing: 12px; margin-top: 0.5rem; }
+        .card { border: 1px solid #d1d5db; border-radius: 12px; padding: 0.9rem; background: #f8fafc; }
+        .stat { font-size: 28px; font-weight: 700; margin-top: 0.3rem; }
+        .pill { display: inline-block; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 12px; background: #e5e7eb; }
+        .pre-wrap { white-space: pre-wrap; }
+        ul { padding-left: 1.1rem; }
+    </style>
+</head>
+<body>
+    <h1>AEGIS AI Security Report</h1>
+    <p class="muted">Project: {{ project.name }}</p>
+    <p class="muted">Generated: {{ generated_at }}</p>
+
+    <table class="grid">
+        <tr>
+            <td class="card">
+                <div class="muted">Status</div>
+                <div class="stat">{{ scan_result.status|upper }}</div>
+            </td>
+            <td class="card">
+                <div class="muted">Score</div>
+                <div class="stat">{{ scan_result.score|default:"N/A" }}</div>
+            </td>
+            <td class="card">
+                <div class="muted">Vibe Score</div>
+                <div class="stat">{{ scan_result.vibe_score|default:"N/A" }}</div>
+            </td>
+            <td class="card">
+                <div class="muted">Critical Findings</div>
+                <div class="stat">{{ scan_result.critical_count }}</div>
+                <div class="muted">Warnings: {{ scan_result.warning_count }}, Info: {{ scan_result.info_count }}</div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="section">
+        <h2>Narrative Summary</h2>
+        <div class="pre-wrap">{{ scan_result.ai_summary|default:scan_result.summary }}</div>
+    </div>
+
+    <div class="section">
+        <h2>Execution Details</h2>
+        <table>
+            <tr>
+                <th>Scan Mode</th>
+                <th>Started</th>
+                <th>Finished</th>
+                <th>Provider</th>
+                <th>API Base</th>
+                <th>GitHub Status</th>
+            </tr>
+            <tr>
+                <td>{{ scan_result.raw_json.scan_mode|default:"N/A" }}</td>
+                <td>{{ scan_result.started_at|default:"N/A" }}</td>
+                <td>{{ scan_result.finished_at|default:"N/A" }}</td>
+                <td>{{ scan_result.provider_used|default:"fallback summary" }}</td>
+                <td>{{ detailed_report.effective_api_base_url|default:"N/A" }}</td>
+                <td>{{ github_summary.overall_status|default:"N/A" }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Scope Snapshot</h2>
+        <table>
+            <tr>
+                <th>Candidate Endpoints</th>
+                <th>Working Endpoints</th>
+                <th>Discovered Routes</th>
+                <th>Repositories</th>
+                <th>GitHub Files Scanned</th>
+                <th>Failed Repositories</th>
+            </tr>
+            <tr>
+                <td>{{ candidate_endpoints|length }}</td>
+                <td>{{ working_endpoints|length }}</td>
+                <td>{{ discovered_routes|length }}</td>
+                <td>{{ github_summary.repo_count|default:0 }}</td>
+                <td>{{ github_summary.scanned_file_count|default:0 }}</td>
+                <td>{{ github_summary.failed_repo_count|default:0 }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Top Findings</h2>
+        <ul>
+            {% for item in top_findings %}
+                <li>
+                    {% if item.title %}<strong>{{ item.title }}</strong>: {% endif %}
+                    {{ item.description|default:item }}
+                </li>
+            {% empty %}
+                <li>No top findings were recorded.</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Recommendations</h2>
+        <ul>
+            {% for item in recommendations %}
+                <li>
+                    {% if item.recommendation %}
+                        {{ item.recommendation }}
+                    {% elif item.description %}
+                        {{ item.description }}
+                    {% else %}
+                        {{ item }}
+                    {% endif %}
+                </li>
+            {% empty %}
+                <li>No recommendations were recorded.</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Check Modules</h2>
+        <table>
+            <tr>
+                <th>Check</th>
+                <th>Status</th>
+                <th>Metadata</th>
+            </tr>
+            {% for check in checks %}
+                <tr>
+                    <td>{{ check.name }}</td>
+                    <td>{{ check.status|default:"N/A" }}</td>
+                    <td>{{ check.metadata }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="3">No per-check metadata was stored for this scan.</td>
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Endpoint Results</h2>
+        <table>
+            <tr>
+                <th>Method</th>
+                <th>Endpoint</th>
+                <th>Public Status</th>
+                <th>Token Status</th>
+                <th>Classification</th>
+            </tr>
+            {% for endpoint in endpoint_results %}
+                <tr>
+                    <td>{{ endpoint.declared_method|default:endpoint.method|default:"GET" }}</td>
+                    <td>{{ endpoint.route }}</td>
+                    <td>{{ endpoint.unauth_status|default:"N/A" }}</td>
+                    <td>{{ endpoint.auth_status|default:"N/A" }}</td>
+                    <td>{{ endpoint.classification|default:"N/A" }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="5">No endpoint probe details were stored for this scan.</td>
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Discovered Routes</h2>
+        <table>
+            <tr>
+                <th>Method</th>
+                <th>Route</th>
+                <th>Source</th>
+            </tr>
+            {% for route in discovered_routes %}
+                <tr>
+                    <td>{{ route.method }}</td>
+                    <td>{{ route.route }}</td>
+                    <td>{{ route.source }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="3">No GitHub-derived routes were discovered during this scan.</td>
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Scoring Breakdown</h2>
+        <table>
+            <tr>
+                <th>Key</th>
+                <th>Title</th>
+                <th>Points</th>
+                <th>Reason</th>
+            </tr>
+            {% for item in scoring_breakdown %}
+                <tr>
+                    <td>{{ item.key|default:"-" }}</td>
+                    <td>{{ item.title|default:"-" }}</td>
+                    <td>{{ item.points|default:"-" }}</td>
+                    <td>{{ item.reason|default:"-" }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="4">No scoring breakdown was stored for this scan.</td>
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Full Findings</h2>
+        <table>
+            <tr>
+                <th>Severity</th>
+                <th>Category</th>
+                <th>Title</th>
+                <th>Description</th>
+                <th>Endpoint</th>
+                <th>File</th>
+                <th>Recommendation</th>
+            </tr>
+            {% for vulnerability in vulnerabilities %}
+                <tr>
+                    <td><span class="pill">{{ vulnerability.severity }}</span></td>
+                    <td>{{ vulnerability.category }}</td>
+                    <td>{{ vulnerability.title }}</td>
+                    <td>{{ vulnerability.description|default:"-" }}</td>
+                    <td>{{ vulnerability.endpoint|default:"-" }}</td>
+                    <td>{{ vulnerability.file_path|default:"-" }}</td>
+                    <td>{{ vulnerability.recommendation|default:"-" }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="7">No vulnerabilities were stored for this scan.</td>
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
+</body>
+</html>
